@@ -59,7 +59,7 @@ class Statement
 	public void analyzeStatement()
 	{
 		String[] stmtSplit = stmt.split(" ");
-		System.out.println(" The statment is : " + stmtSplit[0]);
+		System.out.println(" The statment is : " + stmt);
 		// will optimize it later -- Need to remove split 
 	
 		if(stmtSplit[0].equals("CREATE")){
@@ -74,14 +74,67 @@ class Statement
 		}
 		else if(stmtSplit[0].equals("DROP"))
 		{
-//			DropStatement dropStmt = new DropStatement(stmt,mem,disk,schema_manager);
-//			dropStmt.runStatement();
+			DropStatement dropStmt = new DropStatement(stmt,mem,disk,schema_manager);
+			dropStmt.runStatement();
 		}
 		else if(stmtSplit[0].equals("SELECT"))
 		{
 			SelectStatement selectStmt = new SelectStatement(stmt,mem,disk,schema_manager);
 			selectStmt.runStatement();
 		}
+		else if(stmtSplit[0].equals("DELETE"))
+		{
+			DeleteStatement deleteStmt = new DeleteStatement(stmt,mem,disk,schema_manager);
+			deleteStmt.runStatement();
+		}
+		
+	}
+}
+
+class DeleteStatement extends Statement
+{
+	//Inherited member variables are in comments below
+	//MainMemory mem;
+	//Disk disk;   
+	//SchemaManager schema_manager;
+	//String stmt;
+		
+	Relation relation_reference;
+	String relation_name;
+	
+	public DeleteStatement(String stmt_var, MainMemory mem_var,Disk disk_var, SchemaManager schema_manager_var)
+	{
+		super(stmt_var,mem_var,disk_var,schema_manager_var);
+	}
+	
+	public void runStatement()
+	{
+		String pattern1 = "FROM";
+		String pattern2 = "WHERE";
+		String whereCondition = "";
+		ArrayList<String> tableNames = new ArrayList<String>();
+		Pattern p = Pattern.compile(Pattern.quote(pattern1) + "(.*?)" + Pattern.quote(pattern2));
+		Matcher m = p.matcher(stmt);
+		String allTables = "";
+		while(m.find())
+		{
+			allTables = m.group(1);				
+		}
+		
+		String[] allTablesSplit = allTables.split(",");
+		for(int i=0; i<allTablesSplit.length; i++)
+		{
+			tableNames.add(allTablesSplit[i].trim());
+		}
+		
+		//now getting the condition from where clause
+		p = Pattern.compile(Pattern.quote(pattern2) + "(.*)");
+		m = p.matcher(stmt);			
+		if ( m.find() ) {
+			whereCondition = m.group(1);
+		}
+		System.out.println(" Where condition is " + whereCondition);
+		
 		
 	}
 }
@@ -118,7 +171,6 @@ class SelectStatement extends Statement
 		Matcher m = p.matcher(stmt);
 		while (m.find()) {
 			String col = m.group(1);
-			System.out.println(" Column " + col);
 			columnNames.add(col);		  
 		}
 		
@@ -177,26 +229,58 @@ class SelectStatement extends Statement
 		
 		//following code is assumed for only one table name in from.. Later need to expand it to join 
 		relation_reference = schema_manager.getRelation(tableNames.get(0));
-		System.out.println(" So the relation currently has "+ relation_reference.getNumOfTuples() );
 		
-		relation_reference.getBlocks(0,3,relation_reference.getNumOfBlocks());
+		//was getting everything in once
+		//relation_reference.getBlocks(0,3,relation_reference.getNumOfBlocks());
 	    
-		System.out.println(" Printing table data now ");
 		
 		System.out.println( " Column names " + relation_reference.getSchema().getFieldNames());
 		ArrayList<String> fieldNames = relation_reference.getSchema().getFieldNames();
 		for( int i=0; i<fieldNames.size(); i++)
 		{
 			System.out.print(fieldNames.get(i));
-			System.out.print("\t\t |");
+			System.out.print("   |  ");
 		}
 		System.out.println(" ");
 		System.out.println("----------------------------------------------------");
 		
 		
+		for(int i=0; i<relation_reference.getNumOfBlocks(); i++)
+		{			
+			relation_reference.getBlock(i,3);
+			
+			Block block_reference=mem.getBlock(3);
+			Tuple current = block_reference.getTuple(0);
+			
+			if(doesItPass(current, whereCondition))
+			{
+				System.out.println("Yes yes yes yes yes yes ");
+			}
+			
+//			if(current.getField("project").type == FieldType.INT)
+//			{
+//				if(current.getField("project").integer == 99)
+//					System.out.println(current);
+//			}
+			
+			
+			System.out.println(current);		
+			//implement does it pass
+			//System.out.println(current);
+			
+		}
+		
 		
 	    
 		return true;
+	}
+	private boolean doesItPass(Tuple current, String whereClause)
+	{
+		Stack<String> stack = new Stack<String>();
+		if(whereClause.length() == 0)
+			return true;
+	    
+		return false;
 	}
 }
 
@@ -219,6 +303,7 @@ class DropStatement extends Statement
 		
 		System.out.println(" Successfull drop of the table ");
 		System.out.println("Schema manager after deletion " + schema_manager);
+		
 
 		return true;
 	}
@@ -266,9 +351,6 @@ class InsertStatement extends Statement
 		}		 
 		//parsing logic ends 
 		
-		System.out.println("Now memory contains: " + "\n");
-	    System.out.println(mem + "\n");
-		
 		//now attributes names and values have been collected.Lets create a tuple
 		Tuple tuple = relation_reference.createTuple();
 		for(int i=0; i<attrNames.length; i++)
@@ -292,18 +374,8 @@ class InsertStatement extends Statement
 	    block_reference.appendTuple(tuple);
 	    
 		
-	    Parser.appendTupleToRelation(relation_reference, mem, 5, tuple);
-	    
-	    System.out.println("Memory output " + mem);
-	    
-	    System.out.println(" Disk right now " + disk);
-	    
-	    System.out.println(" reference state right now " + relation_reference);
-	    
-	    System.out.println(" reference has this many blocks " + relation_reference.getNumOfBlocks());
-	    
-	    System.out.println(" Our tables has this many tuples right now " + relation_reference.getNumOfTuples());
-	    
+	    Parser.appendTupleToRelation(relation_reference, mem, 9, tuple);	    
+	   
 		return true;
 	}
 }
@@ -341,10 +413,8 @@ class CreateStatement
 			System.out.println(" " + attr_List.get(i) + " " + attr_types.get(i));
 		}
 		Schema schema = new Schema(attr_List,attr_types);
-		System.out.println(" Statment ran Successfully !");
 		
 		String relation_name=tableName;
-	    System.out.print("Creating table " + relation_name + "\n");
 	    Relation relation_reference=schema_manager.createRelation(relation_name,schema);		
 		
 		
@@ -379,7 +449,10 @@ public class Parser {
 	
 	public static void main(String[] args)
 	{
+		//ReadFile rf = new ReadFile("C:/Users/RatneshThakur/Desktop/Course Materials/Database Systems/Database Systems Project 2/TinySQL_windows - Copy.txt"); //contains file name which contains sql statement
+		
 		ReadFile rf = new ReadFile("C:/Users/RatneshThakur/Desktop/Course Materials/Database Systems/Database Systems Project 2/TinySQL_windows.txt"); //contains file name which contains sql statement
+		
 		ArrayList<String> fileData = rf.readFileText();	//contains file data in the form of array list
 		
 		System.out.println(" Size of the file : " + fileData.size() + " lines");
@@ -410,28 +483,28 @@ public class Parser {
 	public static void appendTupleToRelation(Relation relation_reference, MainMemory mem, int memory_block_index, Tuple tuple) {
 	    Block block_reference;
 	    if (relation_reference.getNumOfBlocks()==0) {
-	      System.out.print("The relation is empty" + "\n");
-	      System.out.print("Get the handle to the memory block " + memory_block_index + " and clear it" + "\n");
+	      //System.out.print("The relation is empty" + "\n");
+	      //System.out.print("Get the handle to the memory block " + memory_block_index + " and clear it" + "\n");
 	      block_reference=mem.getBlock(memory_block_index);
 	      block_reference.clear(); //clear the block
 	      block_reference.appendTuple(tuple); // append the tuple
-	      System.out.print("Write to the first block of the relation" + "\n");
+	      //System.out.print("Write to the first block of the relation" + "\n");
 	      relation_reference.setBlock(relation_reference.getNumOfBlocks(),memory_block_index);
 	    } else {
-	      System.out.print("Read the last block of the relation into memory block 5:" + "\n");
+	      //System.out.print("Read the last block of the relation into memory block 5:" + "\n");
 	      relation_reference.getBlock(relation_reference.getNumOfBlocks()-1,memory_block_index);
 	      block_reference=mem.getBlock(memory_block_index);
 
 	      if (block_reference.isFull()) {
-	        System.out.print("(The block is full: Clear the memory block and append the tuple)" + "\n");
+	        //System.out.print("(The block is full: Clear the memory block and append the tuple)" + "\n");
 	        block_reference.clear(); //clear the block
 	        block_reference.appendTuple(tuple); // append the tuple
-	        System.out.print("Write to a new block at the end of the relation" + "\n");
+	        //System.out.print("Write to a new block at the end of the relation" + "\n");
 	        relation_reference.setBlock(relation_reference.getNumOfBlocks(),memory_block_index); //write back to the relation
 	      } else {
-	        System.out.print("(The block is not full: Append it directly)" + "\n");
+	        //System.out.print("(The block is not full: Append it directly)" + "\n");
 	        block_reference.appendTuple(tuple); // append the tuple
-	        System.out.print("Write to the last block of the relation" + "\n");
+	        //System.out.print("Write to the last block of the relation" + "\n");
 	        relation_reference.setBlock(relation_reference.getNumOfBlocks()-1,memory_block_index); //write back to the relation
 	      }
 	    }
