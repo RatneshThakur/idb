@@ -252,21 +252,9 @@ class SelectStatement extends Statement
 			Block block_reference=mem.getBlock(3);
 			Tuple current = block_reference.getTuple(0);
 			
-			if(doesItPass(current, whereCondition))
-			{
-				System.out.println("Yes yes yes yes yes yes ");
-			}
+			if(testCondition(current,whereCondition) == true)
+				System.out.println(current);			
 			
-//			if(current.getField("project").type == FieldType.INT)
-//			{
-//				if(current.getField("project").integer == 99)
-//					System.out.println(current);
-//			}
-			
-			
-			System.out.println(current);		
-			//implement does it pass
-			//System.out.println(current);
 			
 		}
 		
@@ -274,13 +262,115 @@ class SelectStatement extends Statement
 	    
 		return true;
 	}
-	private boolean doesItPass(Tuple current, String whereClause)
+	private boolean testCondition(Tuple current, String whereClause)
 	{
-		Stack<String> stack = new Stack<String>();
-		if(whereClause.length() == 0)
+		
+		ArrayList<String> postFix = createPostFix(whereClause);		
+		
+		
+		if(postFix.size() == 0)
 			return true;
-	    
-		return false;
+		HashMap<String, Integer> opMap = new HashMap<String,Integer>();
+		opMap.put("+", 2);
+		opMap.put("/", 2);
+		opMap.put("*", 2);
+		opMap.put("-",2);
+		opMap.put("=",1);
+		opMap.put("AND",1);
+		opMap.put("OR",1);
+		opMap.put(">", 1);
+		
+		Stack<String> output = new Stack<String>();
+		
+		for(int i=0; i<postFix.size(); i++)
+		{
+			if(opMap.containsKey(postFix.get(i)))
+			{
+				String field1 = output.pop();
+				String field2 = output.pop();
+				
+				if(postFix.get(i).equals("+"))
+				{
+					Integer result = current.getField(field1).integer + current.getField(field2).integer;
+					output.push(result.toString());
+				}
+				else if(postFix.get(i).equals("="))
+				{
+					if( current.getSchema().fieldNameExists(field2) )
+					{
+						if(current.getField(field2).type == FieldType.INT)
+						{
+							output.push(new Boolean(current.getField(field2).integer == Integer.parseInt(field1)).toString());
+						}
+						
+					}
+					
+				}			
+			}
+			else
+				output.push(postFix.get(i));
+		}
+		
+		return new Boolean(output.pop());
+		
+	}
+	private ArrayList<String> createPostFix(String whereClause)
+	{
+		String[] tokens = whereClause.split(" ");
+		Stack<String> opStack = new Stack<String>();
+		
+		ArrayList<String> postFix = new ArrayList<String>();
+		
+		HashMap<String, Integer> opMap = new HashMap<String,Integer>();
+		opMap.put("+", 2);
+		opMap.put("/", 2);
+		opMap.put("*", 2);
+		opMap.put("-",1);
+		opMap.put("=",1);
+		opMap.put("AND",1);
+		opMap.put("OR",1);
+		opMap.put(">", 1);
+		
+		for(int i=0; i<tokens.length; i++)
+		{
+			if((opMap.containsKey(tokens[i]) == false) && !(tokens[i].equals("[")) && !(tokens[i].equals("]")) )
+			{
+				postFix.add(tokens[i]);
+			}
+			else if(tokens[i].equals("["))
+			{
+				opStack.push(tokens[i]);
+			}
+			else if(opMap.containsKey(tokens[i]) == true)
+			{
+				while((opStack.size() > 0 ) && !(opStack.peek().equals("[")))
+				{
+					String topOp = opStack.peek();
+					if( opMap.get(topOp) > opMap.get(tokens[i]))
+					{
+						postFix.add(opStack.pop());
+					}
+					else
+						break;
+				}
+				opStack.push(tokens[i]);
+			}
+			else if(tokens[i].equals("]"))
+			{
+				while ((opStack.size() > 0) && !(opStack.peek().equals("[")))
+	            {
+					postFix.add(opStack.pop());
+	            }
+	            if (opStack.size() > 0)
+	                opStack.pop(); // popping out the left brace '('				
+			}
+		}
+		
+		while(opStack.size() > 0)
+			postFix.add(opStack.pop());		
+		
+	
+		return postFix;
 	}
 }
 
